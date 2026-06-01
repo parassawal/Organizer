@@ -17,8 +17,6 @@ mac:
     - zip
   category: public.app-category.utilities
   entitlementsInherit: build/entitlements.mac.plist
-  extendInfo:
-    LSUIElement: true
 dmg:
   artifactName: ${name}-${version}-mac.${ext}
 win:

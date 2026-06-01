@@ -12,7 +12,7 @@ import { DedupeEngine } from './services/dedupe'
 let mainWindow: BrowserWindow | null = null
 const organizer = new OrganizerEngine()
 const fileWatcher = new FileWatcherService(organizer)
-const trayManager = new TrayManager(fileWatcher)
+const trayManager = new TrayManager(fileWatcher, createWindow)
 const dedupe = new DedupeEngine()
 
 function createWindow(): void {
@@ -37,13 +37,8 @@ function createWindow(): void {
     mainWindow?.show()
   })
 
-  mainWindow.on('close', (event) => {
-    // True background mode: Always hide instead of closing
-    event.preventDefault()
-    setTimeout(() => {
-      mainWindow?.hide()
-    }, 10)
-  })
+  // We let the window close naturally (which destroys it)
+  // Re-creation is handled by the Tray or app.on('activate')
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
@@ -71,8 +66,9 @@ app.whenReady().then(() => {
   // Set up file organized callback
   organizer.setOnFileOrganized((entry) => {
     // Send to renderer
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('on-file-organized', entry)
+    const windows = BrowserWindow.getAllWindows()
+    if (windows.length > 0 && !windows[0].isDestroyed()) {
+      windows[0].webContents.send('on-file-organized', entry)
     }
 
     // Show notification
@@ -91,7 +87,6 @@ app.whenReady().then(() => {
   createWindow()
 
   // Set up tray
-  trayManager.setMainWindow(mainWindow!)
   trayManager.create()
 
   // Start watching

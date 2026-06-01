@@ -5,18 +5,14 @@ import { FileWatcherService } from './file-watcher'
 export class TrayManager {
   private tray: Tray | null = null
   private fileWatcher: FileWatcherService
-  private mainWindow: BrowserWindow | null = null
+  private createWindow: () => void
 
-  constructor(fileWatcher: FileWatcherService) {
+  constructor(fileWatcher: FileWatcherService, createWindow: () => void) {
     this.fileWatcher = fileWatcher
-  }
-
-  setMainWindow(window: BrowserWindow): void {
-    this.mainWindow = window
+    this.createWindow = createWindow
   }
 
   create(): void {
-    // Create a simple 16x16 icon programmatically
     const icon = nativeImage.createFromDataURL(
       'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAWklEQVR42mL8z8BQz0BFAMTA' +
       'QGUwagCxhhiqAZgYqAxGDYCBUQPIcwFMM8wQZDFiNMPkYIYQoxmmBpcBxGiGqcFlADGaYWpwGUCMZpgaXAYQoxmmBgABAACjVB/x' +
@@ -28,12 +24,15 @@ export class TrayManager {
     this.updateMenu()
 
     this.tray.on('click', () => {
-      if (this.mainWindow) {
-        if (this.mainWindow.isVisible()) {
-          this.mainWindow.focus()
+      const windows = BrowserWindow.getAllWindows()
+      if (windows.length > 0) {
+        if (windows[0].isVisible()) {
+          windows[0].focus()
         } else {
-          this.mainWindow.show()
+          windows[0].show()
         }
+      } else {
+        this.createWindow()
       }
     })
   }
@@ -47,9 +46,12 @@ export class TrayManager {
       {
         label: 'Show Organizer',
         click: () => {
-          if (this.mainWindow) {
-            this.mainWindow.show()
-            this.mainWindow.focus()
+          const windows = BrowserWindow.getAllWindows()
+          if (windows.length > 0) {
+            windows[0].show()
+            windows[0].focus()
+          } else {
+            this.createWindow()
           }
         }
       },
