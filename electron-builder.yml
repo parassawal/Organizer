@@ -1,0 +1,30 @@
+appId: com.fileflow.organizer
+productName: Organizer
+directories:
+  buildResources: build
+  output: dist
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+asarUnpack:
+  - resources/**
+mac:
+  target:
+    - dmg
+    - zip
+  category: public.app-category.utilities
+  entitlementsInherit: build/entitlements.mac.plist
+dmg:
+  artifactName: ${name}-${version}-mac.${ext}
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  artifactName: ${name}-${version}-win-setup.${ext}
