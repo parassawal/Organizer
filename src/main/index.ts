@@ -10,11 +10,15 @@ import { getSettings } from './services/config-store'
 import { DedupeEngine } from './services/dedupe'
 
 let mainWindow: BrowserWindow | null = null
+let forceQuit = false
 let isQuitting = false
 
 const organizer = new OrganizerEngine()
 const fileWatcher = new FileWatcherService(organizer)
-const trayManager = new TrayManager(fileWatcher, createWindow)
+const trayManager = new TrayManager(fileWatcher, () => {
+  forceQuit = true
+  app.quit()
+})
 const dedupe = new DedupeEngine()
 
 function createWindow(): void {
@@ -41,7 +45,7 @@ function createWindow(): void {
 
   // Prevent window from being destroyed to keep renderer/background tasks alive
   mainWindow.on('close', (event) => {
-    if (!isQuitting) {
+    if (!isQuitting && !forceQuit) {
       event.preventDefault()
       mainWindow?.hide()
     }
@@ -100,6 +104,12 @@ app.whenReady().then(() => {
   fileWatcher.startAll()
 
   app.on('activate', () => {
+    if (app.dock) {
+      try {
+        app.dock.show()
+      } catch (e) {}
+    }
+
     if (mainWindow) {
       mainWindow.show()
     } else {
@@ -108,12 +118,24 @@ app.whenReady().then(() => {
   })
 })
 
-app.on('window-all-closed', () => {
-  // True background mode: Never quit when windows are closed.
-  // The app continues running in the background until explicitly quit from the tray.
-})
+app.on('before-quit', async (event) => {
+  const settings = getSettings()
+  
+  if (!forceQuit && settings.minimizeToTray) {
+    event.preventDefault()
+    if (mainWindow) {
+      mainWindow.hide()
+    }
+    
+    // Hide dock icon so it runs purely as a background daemon
+    if (app.dock) {
+      try {
+        app.dock.hide()
+      } catch (e) {}
+    }
+    return
+  }
 
-app.on('before-quit', async () => {
   isQuitting = true
   await fileWatcher.stopAll()
   trayManager.destroy()

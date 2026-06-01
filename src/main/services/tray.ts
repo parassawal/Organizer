@@ -5,11 +5,11 @@ import { FileWatcherService } from './file-watcher'
 export class TrayManager {
   private tray: Tray | null = null
   private fileWatcher: FileWatcherService
-  private createWindow: () => void
+  private quitApp: () => void
 
-  constructor(fileWatcher: FileWatcherService, createWindow: () => void) {
+  constructor(fileWatcher: FileWatcherService, quitApp: () => void) {
     this.fileWatcher = fileWatcher
-    this.createWindow = createWindow
+    this.quitApp = quitApp
   }
 
   create(): void {
@@ -24,16 +24,7 @@ export class TrayManager {
     this.updateMenu()
 
     this.tray.on('click', () => {
-      const windows = BrowserWindow.getAllWindows()
-      if (windows.length > 0) {
-        if (windows[0].isVisible()) {
-          windows[0].focus()
-        } else {
-          windows[0].show()
-        }
-      } else {
-        this.createWindow()
-      }
+      app.emit('activate')
     })
   }
 
@@ -46,13 +37,7 @@ export class TrayManager {
       {
         label: 'Show Organizer',
         click: () => {
-          const windows = BrowserWindow.getAllWindows()
-          if (windows.length > 0) {
-            windows[0].show()
-            windows[0].focus()
-          } else {
-            this.createWindow()
-          }
+          app.emit('activate')
         }
       },
       { type: 'separator' },
@@ -71,7 +56,7 @@ export class TrayManager {
       {
         label: 'Quit Organizer',
         click: () => {
-          app.quit()
+          this.quitApp()
         }
       }
     ])
