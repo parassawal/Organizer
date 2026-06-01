@@ -10,6 +10,8 @@ import { getSettings } from './services/config-store'
 import { DedupeEngine } from './services/dedupe'
 
 let mainWindow: BrowserWindow | null = null
+let isQuitting = false
+
 const organizer = new OrganizerEngine()
 const fileWatcher = new FileWatcherService(organizer)
 const trayManager = new TrayManager(fileWatcher, createWindow)
@@ -37,8 +39,13 @@ function createWindow(): void {
     mainWindow?.show()
   })
 
-  // We let the window close naturally (which destroys it)
-  // Re-creation is handled by the Tray or app.on('activate')
+  // Prevent window from being destroyed to keep renderer/background tasks alive
+  mainWindow.on('close', (event) => {
+    if (!isQuitting) {
+      event.preventDefault()
+      mainWindow?.hide()
+    }
+  })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
@@ -93,10 +100,10 @@ app.whenReady().then(() => {
   fileWatcher.startAll()
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow()
+    if (mainWindow) {
+      mainWindow.show()
     } else {
-      mainWindow?.show()
+      createWindow()
     }
   })
 })
@@ -107,6 +114,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', async () => {
+  isQuitting = true
   await fileWatcher.stopAll()
   trayManager.destroy()
 })
