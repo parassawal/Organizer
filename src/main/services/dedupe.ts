@@ -124,40 +124,56 @@ export class DedupeEngine {
       }
     }
 
-    return duplicateGroups
+    // Sort by wasted space descending
+    duplicateGroups.sort((a, b) => {
+      const wastedA = a.size * (a.files.length - 1)
+      const wastedB = b.size * (b.files.length - 1)
+      return wastedB - wastedA
+    })
+
+    // HARD LIMIT: Only return the top 500 largest duplicate groups to prevent crashing the IPC and React Renderer UI
+    return duplicateGroups.slice(0, 500)
   }
 
   async moveDuplicates(filePaths: string[]): Promise<number> {
     let movedCount = 0
 
-    for (const filePath of filePaths) {
-      try {
-        if (!fs.existsSync(filePath)) continue
+    // Process moves in batches to prevent event loop blocking
+    const MAX_CONCURRENT_MOVES = 5
+    for (let i = 0; i < filePaths.length; i += MAX_CONCURRENT_MOVES) {
+      const batch = filePaths.slice(i, i + MAX_CONCURRENT_MOVES)
+      await Promise.all(batch.map(async (filePath) => {
+        try {
+          const exists = await fsp.access(filePath).then(() => true).catch(() => false)
+          if (!exists) return
 
-        const dir = path.dirname(filePath)
-        const dupFolder = path.join(dir, 'Duplicates')
-        
-        if (!fs.existsSync(dupFolder)) {
-          fs.mkdirSync(dupFolder, { recursive: true })
+          const dir = path.dirname(filePath)
+          const dupFolder = path.join(dir, 'Duplicates')
+          
+          const dupFolderExists = await fsp.access(dupFolder).then(() => true).catch(() => false)
+          if (!dupFolderExists) {
+            await fsp.mkdir(dupFolder, { recursive: true }).catch(() => {})
+          }
+
+          const fileName = path.basename(filePath)
+          let targetPath = path.join(dupFolder, fileName)
+
+          // Handle naming conflicts
+          let counter = 1
+          const ext = path.extname(fileName)
+          const nameWithoutExt = path.basename(fileName, ext)
+          
+          while (await fsp.access(targetPath).then(() => true).catch(() => false)) {
+            targetPath = path.join(dupFolder, `${nameWithoutExt} (${counter})${ext}`)
+            counter++
+          }
+
+          await fsp.rename(filePath, targetPath)
+          movedCount++
+        } catch (err) {
+          console.error('Error moving duplicate file:', filePath, err)
         }
-
-        const fileName = path.basename(filePath)
-        let targetPath = path.join(dupFolder, fileName)
-
-        // Handle naming conflicts
-        let counter = 1
-        const ext = path.extname(fileName)
-        const nameWithoutExt = path.basename(fileName, ext)
-        while (fs.existsSync(targetPath)) {
-          targetPath = path.join(dupFolder, `${nameWithoutExt} (${counter})${ext}`)
-          counter++
-        }
-
-        fs.renameSync(filePath, targetPath)
-        movedCount++
-      } catch (err) {
-        console.error('Error moving duplicate file:', filePath, err)
-      }
+      }))
     }
 
     return movedCount
@@ -171,8 +187,14 @@ export class DedupeEngine {
       const stream = fs.createReadStream(filePath, options)
 
       stream.on('data', (data) => hash.update(data))
-      stream.on('end', () => resolve(hash.digest('hex')))
-      stream.on('error', reject)
+      stream.on('end', () => {
+        resolve(hash.digest('hex'))
+        stream.destroy()
+      })
+      stream.on('error', (err) => {
+        reject(err)
+        stream.destroy()
+      })
     })
   }
 }
