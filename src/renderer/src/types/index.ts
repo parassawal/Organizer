@@ -19,14 +19,14 @@ export interface RuleCondition {
 export type FileTypeGroup = 'images' | 'videos' | 'audio' | 'documents' | 'archives' | 'code' | 'executables' | 'fonts' | 'other'
 
 export const FILE_TYPE_GROUPS: Record<FileTypeGroup, string[]> = {
-  images: ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg', '.webp', '.ico', '.tiff', '.tif', '.heic', '.heif', '.raw', '.cr2', '.nef'],
-  videos: ['.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpg', '.mpeg', '.3gp'],
-  audio: ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.wma', '.m4a', '.opus', '.aiff'],
-  documents: ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.rtf', '.odt', '.ods', '.odp', '.csv', '.md', '.epub'],
-  archives: ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.xz', '.iso', '.dmg', '.pkg'],
-  code: ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.c', '.cpp', '.h', '.hpp', '.cs', '.go', '.rs', '.rb', '.php', '.swift', '.kt', '.html', '.css', '.scss', '.json', '.xml', '.yaml', '.yml', '.sql', '.sh', '.bash'],
-  executables: ['.exe', '.msi', '.app', '.deb', '.rpm', '.appimage', '.bat', '.cmd'],
-  fonts: ['.ttf', '.otf', '.woff', '.woff2', '.eot'],
+  images: ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg', '.webp', '.ico', '.tiff', '.tif', '.heic', '.heif', '.raw', '.cr2', '.nef', '.psd', '.ai', '.eps', '.indd', '.sketch', '.fig', '.xcf', '.crw', '.orf', '.sr2', '.dng', '.arw', '.rw2', '.raf', '.jpe', '.jif', '.jfif', '.jfi'],
+  videos: ['.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpg', '.mpeg', '.3gp', '.ts', '.m2ts', '.vob', '.ogv', '.rm', '.rmvb', '.asf', '.amv', '.mxf', '.mts', '.m2v', '.m4p', '.m4b', '.m4r', '.f4v', '.f4p', '.f4a', '.f4b'],
+  audio: ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.wma', '.m4a', '.opus', '.aiff', '.alac', '.mid', '.midi', '.m3u', '.m3u8', '.ape', '.au', '.pcm', '.amr', '.cda', '.mid', '.rmi', '.mp2', '.mp1', '.mka', '.ra', '.voc'],
+  documents: ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.rtf', '.odt', '.ods', '.odp', '.csv', '.md', '.epub', '.pages', '.numbers', '.key', '.tex', '.log', '.msg', '.eml', '.vcf', '.mobi', '.azw3', '.wps', '.wpd', '.oxps', '.xps', '.dot', '.dotx', '.docm', '.dotm', '.xlsm', '.xltx', '.xltm', '.xlsb', '.xlam', '.pptm', '.potx', '.potm', '.ppam', '.ppsx', '.ppsm', '.sldx', '.sldm'],
+  archives: ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.xz', '.iso', '.dmg', '.pkg', '.tgz', '.tbz2', '.txz', '.lz', '.lzma', '.lzo', '.z', '.cab', '.arj', '.lzh', '.ace', '.uue', '.sit', '.sitx', '.hqx', '.sea', '.bin', '.macbin', '.cpt', '.pit', '.dd', '.cpio', '.shar', '.lha', '.zoo', '.ark'],
+  code: ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.c', '.cpp', '.h', '.hpp', '.cs', '.go', '.rs', '.rb', '.php', '.swift', '.kt', '.html', '.css', '.scss', '.json', '.xml', '.yaml', '.yml', '.sql', '.sh', '.bash', '.cxx', '.cc', '.hh', '.hxx', '.m', '.mm', '.pl', '.pm', '.tcl', '.lua', '.dart', '.r', '.rmd', '.fs', '.f', '.for', '.f90', '.f95', '.ada', '.adb', '.ads', '.asm', '.s', '.vue', '.svelte', '.graphql', '.gql', '.ini', '.toml', '.env', '.bat', '.vbs', '.ps1', '.dockerfile', '.makefile', '.mk', '.pom', '.less', '.sass', '.styl', '.pug', '.ejs', '.twig', '.hbs', '.vtt', '.srt', '.sub', '.ass', '.ssa', '.sbv', '.mpsub', '.lrc', '.cap', '.smi', '.sami', '.rt', '.vdf', '.mks'],
+  executables: ['.exe', '.msi', '.app', '.deb', '.rpm', '.appimage', '.bat', '.cmd', '.apk', '.ipa', '.jar', '.bin', '.run', '.out', '.com', '.gadget', '.wsf', '.cpl', '.msc', '.scr', '.sys', '.ps1', '.vbs', '.wsf', '.vbe', '.jse', '.wsh', '.ps1xml', '.ps2', '.ps2xml', '.psc1', '.psc2', '.msh', '.msh1', '.msh2', '.mshxml', '.msh1xml', '.msh2xml', '.scf', '.lnk', '.inf', '.reg', '.dll', '.ocx', '.ax', '.drv', '.vxd', '.cpl', '.msc', '.msp', '.mst', '.pif'],
+  fonts: ['.ttf', '.otf', '.woff', '.woff2', '.eot', '.fon', '.fnt', '.pfa', '.pfb', '.afm', '.dfont', '.ttc', '.suit', '.bdf', '.pcf', '.snf', '.chr', '.vlw', '.gdr', '.fot'],
   other: []
 }
 
@@ -153,6 +153,28 @@ export const DEFAULT_RULES: OrganizationRule[] = [
     priority: 6,
     conditions: [{ type: 'typeGroup', value: 'code' }],
     destination: 'Code',
+    conditionLogic: 'OR',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'preset-executables',
+    name: 'Applications & Installers',
+    enabled: true,
+    priority: 7,
+    conditions: [{ type: 'typeGroup', value: 'executables' }],
+    destination: 'Applications',
+    conditionLogic: 'OR',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'preset-fonts',
+    name: 'Fonts',
+    enabled: true,
+    priority: 8,
+    conditions: [{ type: 'typeGroup', value: 'fonts' }],
+    destination: 'Fonts',
     conditionLogic: 'OR',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
