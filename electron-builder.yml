@@ -1,4 +1,4 @@
-appId: com.fileflow.organizer
+appId: com.organizer.app
 productName: Organizer
 directories:
   buildResources: build
@@ -21,7 +21,11 @@ dmg:
   artifactName: ${name}-${version}-mac.${ext}
 win:
   target:
-    - nsis
+    - target: nsis
+      arch:
+        - x64
+        - ia32
+        - arm64
 nsis:
   oneClick: true
   perMachine: false
