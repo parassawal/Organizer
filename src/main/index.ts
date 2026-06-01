@@ -59,11 +59,6 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  // True background mode: Hide the app from the macOS Dock completely
-  if (app.dock) {
-    app.dock.hide()
-  }
-
   electronApp.setAppUserModelId('com.organizer.app')
 
   app.on('browser-window-created', (_, window) => {
