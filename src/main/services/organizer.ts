@@ -1,9 +1,19 @@
 import * as path from 'path'
 import * as fs from 'fs'
+import { promises as fsp } from 'fs'
 import type { OrganizationRule, RuleCondition, ActivityLogEntry, AppSettings } from '../../renderer/src/types'
 import { FILE_TYPE_GROUPS, type FileTypeGroup } from '../../renderer/src/types'
 import { getRules, getSettings, addActivityLogEntry, incrementStats, markActivityUndone } from './config-store'
 import { getFileTypeByMagicNumber } from './magic-inspector'
+
+async function asyncExists(filePath: string): Promise<boolean> {
+  try {
+    await fsp.access(filePath)
+    return true
+  } catch {
+    return false
+  }
+}
 
 export class OrganizerEngine {
   private onFileOrganized: ((entry: ActivityLogEntry) => void) | null = null
@@ -12,95 +22,85 @@ export class OrganizerEngine {
     this.onFileOrganized = callback
   }
 
-  async organizeFile(filePath: string, watchedFolderPath: string, specificRuleIds?: string[]): Promise<void> {
+  async organizeFile(filePath: string, watchedFolderPath: string, specificRuleIds?: string[]): Promise<boolean> {
     const settings = getSettings()
     const fileName = path.basename(filePath)
 
-    // Check exclusion patterns
     if (this.isExcluded(fileName, settings)) {
-      return
+      return false
     }
 
-    // Check if file still exists (might have been moved already)
-    if (!fs.existsSync(filePath)) {
-      return
+    if (!(await asyncExists(filePath))) {
+      return false
     }
 
-    // Get applicable rules
     let rules = getRules().filter(r => r.enabled)
     if (specificRuleIds && specificRuleIds.length > 0) {
       rules = rules.filter(r => specificRuleIds.includes(r.id))
     }
 
-    // Sort by priority (lower number = higher priority)
     rules.sort((a, b) => a.priority - b.priority)
 
-    // Find matching rule
-    const matchingRule = this.findMatchingRule(filePath, rules)
+    const matchingRule = await this.findMatchingRule(filePath, rules)
     if (!matchingRule) {
-      return
+      return false
     }
 
-    // Determine destination
     const destDir = path.isAbsolute(matchingRule.destination)
       ? matchingRule.destination
       : path.join(watchedFolderPath, matchingRule.destination)
 
-    // Create destination directory if needed
-    if (settings.createSubfolders && !fs.existsSync(destDir)) {
-      fs.mkdirSync(destDir, { recursive: true })
+    if (settings.createSubfolders && !(await asyncExists(destDir))) {
+      await fsp.mkdir(destDir, { recursive: true }).catch(() => {})
     }
 
-    if (!fs.existsSync(destDir)) {
-      return
+    if (!(await asyncExists(destDir))) {
+      return false
     }
 
-    // Handle destination file path
     let destPath = path.join(destDir, fileName)
 
-    // If source and destination are the same, skip
     if (path.resolve(filePath) === path.resolve(destPath)) {
-      return
+      return false
     }
 
-    // Handle conflicts
-    if (fs.existsSync(destPath)) {
+    if (await asyncExists(destPath)) {
       switch (settings.conflictResolution) {
         case 'skip':
           this.logEntry('skipped', filePath, destPath, matchingRule)
-          return
+          return false
         case 'overwrite':
-          // Will overwrite below
           break
         case 'rename':
         default:
-          destPath = this.getUniqueFileName(destPath)
+          destPath = await this.getUniqueFileName(destPath)
           break
       }
     }
 
     try {
-      // Move the file
-      fs.renameSync(filePath, destPath)
+      await fsp.rename(filePath, destPath)
       const entry = this.logEntry('moved', filePath, destPath, matchingRule)
       incrementStats()
 
       if (this.onFileOrganized && entry) {
         this.onFileOrganized(entry)
       }
+      return true
     } catch (err) {
-      // If rename fails (cross-device), copy then delete
       try {
-        fs.copyFileSync(filePath, destPath)
-        fs.unlinkSync(filePath)
+        await fsp.copyFile(filePath, destPath)
+        await fsp.unlink(filePath)
         const entry = this.logEntry('moved', filePath, destPath, matchingRule)
         incrementStats()
 
         if (this.onFileOrganized && entry) {
           this.onFileOrganized(entry)
         }
+        return true
       } catch (copyErr) {
         this.logEntry('error', filePath, destPath, matchingRule)
+        return false
       }
     }
   }
@@ -110,17 +110,22 @@ export class OrganizerEngine {
     let count = 0
 
     try {
-      const entries = fs.readdirSync(watchedFolderPath, { withFileTypes: true })
-      for (const entry of entries) {
-        if (!entry.isFile()) continue
-        if (this.isExcluded(entry.name, settings)) continue
+      const entries = await fsp.readdir(watchedFolderPath, { withFileTypes: true })
+      
+      const MAX_CONCURRENT = 10
+      for (let i = 0; i < entries.length; i += MAX_CONCURRENT) {
+        const batch = entries.slice(i, i + MAX_CONCURRENT)
+        
+        await Promise.all(batch.map(async (entry) => {
+          if (!entry.isFile()) return
+          if (this.isExcluded(entry.name, settings)) return
 
-        const filePath = path.join(watchedFolderPath, entry.name)
-        await this.organizeFile(filePath, watchedFolderPath, specificRuleIds)
-        // Check if file was actually moved (no longer at original path)
-        if (!fs.existsSync(filePath)) {
-          count++
-        }
+          const filePath = path.join(watchedFolderPath, entry.name)
+          const moved = await this.organizeFile(filePath, watchedFolderPath, specificRuleIds)
+          if (moved) {
+            count++
+          }
+        }))
       }
     } catch (err) {
       console.error(`Error scanning folder ${watchedFolderPath}:`, err)
@@ -134,21 +139,19 @@ export class OrganizerEngine {
     if (!entry) return false
 
     try {
-      if (entry.type === 'moved' && fs.existsSync(entry.destinationPath)) {
-        // Ensure source directory exists
+      if (entry.type === 'moved' && (await asyncExists(entry.destinationPath))) {
         const sourceDir = path.dirname(entry.sourcePath)
-        if (!fs.existsSync(sourceDir)) {
-          fs.mkdirSync(sourceDir, { recursive: true })
+        if (!(await asyncExists(sourceDir))) {
+          await fsp.mkdir(sourceDir, { recursive: true })
         }
 
-        fs.renameSync(entry.destinationPath, entry.sourcePath)
+        await fsp.rename(entry.destinationPath, entry.sourcePath)
         return true
       }
     } catch {
-      // If rename fails, try copy+delete
       try {
-        fs.copyFileSync(entry.destinationPath, entry.sourcePath)
-        fs.unlinkSync(entry.destinationPath)
+        await fsp.copyFile(entry.destinationPath, entry.sourcePath)
+        await fsp.unlink(entry.destinationPath)
         return true
       } catch {
         return false
@@ -158,19 +161,19 @@ export class OrganizerEngine {
     return false
   }
 
-  private findMatchingRule(filePath: string, rules: OrganizationRule[]): OrganizationRule | null {
+  private async findMatchingRule(filePath: string, rules: OrganizationRule[]): Promise<OrganizationRule | null> {
     for (const rule of rules) {
-      if (this.matchesRule(filePath, rule)) {
+      if (await this.matchesRule(filePath, rule)) {
         return rule
       }
     }
     return null
   }
 
-  private matchesRule(filePath: string, rule: OrganizationRule): boolean {
+  private async matchesRule(filePath: string, rule: OrganizationRule): Promise<boolean> {
     if (rule.conditions.length === 0) return false
 
-    const results = rule.conditions.map(cond => this.matchesCondition(filePath, cond))
+    const results = await Promise.all(rule.conditions.map(cond => this.matchesCondition(filePath, cond)))
 
     if (rule.conditionLogic === 'AND') {
       return results.every(Boolean)
@@ -179,7 +182,7 @@ export class OrganizerEngine {
     }
   }
 
-  private matchesCondition(filePath: string, condition: RuleCondition): boolean {
+  private async matchesCondition(filePath: string, condition: RuleCondition): Promise<boolean> {
     const ext = path.extname(filePath).toLowerCase()
     const fileName = path.basename(filePath)
 
@@ -195,10 +198,8 @@ export class OrganizerEngine {
         
         let isMatch = extensions ? extensions.includes(ext) : false
         
-        // Deep File Inspection Fallback
-        // If the extension didn't match, or there is no extension, try reading the magic number
         if (!isMatch) {
-          const magicType = getFileTypeByMagicNumber(filePath)
+          const magicType = await getFileTypeByMagicNumber(filePath)
           if (magicType === group) {
             isMatch = true
           }
@@ -213,7 +214,7 @@ export class OrganizerEngine {
 
       case 'sizeGreaterThan': {
         try {
-          const stats = fs.statSync(filePath)
+          const stats = await fsp.stat(filePath)
           return stats.size > parseInt(condition.value)
         } catch {
           return false
@@ -222,7 +223,7 @@ export class OrganizerEngine {
 
       case 'sizeLessThan': {
         try {
-          const stats = fs.statSync(filePath)
+          const stats = await fsp.stat(filePath)
           return stats.size < parseInt(condition.value)
         } catch {
           return false
@@ -231,7 +232,7 @@ export class OrganizerEngine {
 
       case 'dateCreated': {
         try {
-          const stats = fs.statSync(filePath)
+          const stats = await fsp.stat(filePath)
           const created = stats.birthtime.toISOString()
           return created.startsWith(condition.value)
         } catch {
@@ -245,7 +246,6 @@ export class OrganizerEngine {
   }
 
   private matchGlob(fileName: string, pattern: string): boolean {
-    // Simple glob matching: * matches anything, ? matches single char
     const regex = pattern
       .replace(/[.+^${}()|[\]\\]/g, '\\$&')
       .replace(/\*/g, '.*')
@@ -262,14 +262,14 @@ export class OrganizerEngine {
     })
   }
 
-  private getUniqueFileName(destPath: string): string {
+  private async getUniqueFileName(destPath: string): Promise<string> {
     const dir = path.dirname(destPath)
     const ext = path.extname(destPath)
     const nameWithoutExt = path.basename(destPath, ext)
     let counter = 1
     let newPath = destPath
 
-    while (fs.existsSync(newPath)) {
+    while (await asyncExists(newPath)) {
       newPath = path.join(dir, `${nameWithoutExt} (${counter})${ext}`)
       counter++
     }
