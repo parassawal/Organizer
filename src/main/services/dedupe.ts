@@ -60,68 +60,18 @@ export class DedupeEngine {
 
     const duplicateGroups: DuplicateGroup[] = []
     
-    const hashInBatches = async <T>(items: T[], fn: (item: T) => Promise<void>) => {
-      for (let i = 0; i < items.length; i += 5) {
-        await Promise.all(items.slice(i, i + 5).map(fn))
-      }
-    }
-
-    // 3. Hash only files that share a size using Two-Pass approach
+    // 3. Just use size filtering (as requested by user to disable hashing)
     for (const sizeStr in sizeGroups) {
       const files = sizeGroups[sizeStr]
       if (files.length < 2) continue
 
       const fileSize = parseInt(sizeStr, 10)
       
-      // Pass 1: Fast Hash (First 1MB only)
-      const fastHashGroups: Record<string, DuplicateFile[]> = {}
-      
-      await hashInBatches(files, async (file) => {
-        try {
-          const hash = await this.hashFile(file.path, 1024 * 1024) 
-          if (!fastHashGroups[hash]) fastHashGroups[hash] = []
-          fastHashGroups[hash].push(file)
-        } catch (err) {
-          console.error('Error fast-hashing file:', file.path, err)
-        }
+      duplicateGroups.push({
+        hash: `size-only-${fileSize}`, // Fake hash
+        size: fileSize,
+        files: files
       })
-
-      // Pass 2: Full Hash for files that collided on the fast hash
-      for (const fastHash in fastHashGroups) {
-        const candidates = fastHashGroups[fastHash]
-        if (candidates.length < 2) continue
-        
-        // If file is smaller than or exactly 1MB, the fast hash IS the full hash.
-        if (fileSize <= 1024 * 1024) {
-          duplicateGroups.push({
-            hash: fastHash,
-            size: fileSize,
-            files: candidates
-          })
-          continue
-        }
-
-        const fullHashGroups: Record<string, DuplicateFile[]> = {}
-        await hashInBatches(candidates, async (file) => {
-          try {
-            const hash = await this.hashFile(file.path, 0) // 0 means full hash
-            if (!fullHashGroups[hash]) fullHashGroups[hash] = []
-            fullHashGroups[hash].push(file)
-          } catch (err) {
-            console.error('Error full-hashing file:', file.path, err)
-          }
-        })
-
-        for (const fullHash in fullHashGroups) {
-          if (fullHashGroups[fullHash].length > 1) {
-            duplicateGroups.push({
-              hash: fullHash,
-              size: fileSize,
-              files: fullHashGroups[fullHash]
-            })
-          }
-        }
-      }
     }
 
     // Sort by wasted space descending
@@ -179,22 +129,4 @@ export class DedupeEngine {
     return movedCount
   }
 
-  // Helper to hash files efficiently. maxBytes = 0 for full file
-  private hashFile(filePath: string, maxBytes: number = 0): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const hash = crypto.createHash('sha256')
-      const options = maxBytes > 0 ? { start: 0, end: maxBytes - 1 } : undefined
-      const stream = fs.createReadStream(filePath, options)
-
-      stream.on('data', (data) => hash.update(data))
-      stream.on('end', () => {
-        resolve(hash.digest('hex'))
-        stream.destroy()
-      })
-      stream.on('error', (err) => {
-        reject(err)
-        stream.destroy()
-      })
-    })
-  }
 }

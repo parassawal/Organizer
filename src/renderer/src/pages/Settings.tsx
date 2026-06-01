@@ -83,6 +83,17 @@ export default function Settings() {
             <span className="toggle-track" /><span className="toggle-thumb" />
           </label>
         </div>
+        <div className="settings-row">
+          <div>
+            <div className="settings-row-label">Theme</div>
+            <div className="settings-row-desc">Choose between dark and light mode</div>
+          </div>
+          <select className="input" style={{ width: 100 }} value={settings.theme}
+            onChange={e => update({ theme: e.target.value as AppSettings['theme'] })}>
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </div>
       </div>
 
       <div className="settings-section">

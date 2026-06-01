@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useAPI } from './hooks/useElectronAPI'
 import Sidebar from './components/Sidebar'
 import Dashboard from './pages/Dashboard'
 import WatchFolders from './pages/WatchFolders'
@@ -11,6 +12,23 @@ type Page = 'dashboard' | 'folders' | 'rules' | 'activity' | 'duplicates' | 'set
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard')
+  const api = useAPI()
+
+  useEffect(() => {
+    // Initial theme load
+    api.getSettings().then(settings => {
+      document.documentElement.setAttribute('data-theme', settings.theme)
+    })
+
+    // Poll for settings changes (simple approach) since theme might change in settings tab
+    const interval = setInterval(() => {
+      api.getSettings().then(settings => {
+        document.documentElement.setAttribute('data-theme', settings.theme)
+      })
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [api])
 
   return (
     <div className="app-container">
