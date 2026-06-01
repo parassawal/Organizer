@@ -40,7 +40,9 @@ function createWindow(): void {
   mainWindow.on('close', (event) => {
     // True background mode: Always hide instead of closing
     event.preventDefault()
-    mainWindow?.hide()
+    setTimeout(() => {
+      mainWindow?.hide()
+    }, 10)
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
