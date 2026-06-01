@@ -9,13 +9,13 @@ interface SidebarProps {
   onNavigate: (page: Page) => void
 }
 
-const navItems: { id: Page; icon: string; label: string }[] = [
-  { id: 'dashboard', icon: '📊', label: 'Dashboard' },
-  { id: 'folders', icon: '📁', label: 'Watch Folders' },
-  { id: 'rules', icon: '📋', label: 'Rules' },
-  { id: 'activity', icon: '📝', label: 'Activity Log' },
-  { id: 'duplicates', icon: '🗂️', label: 'Duplicates' },
-  { id: 'settings', icon: '⚙️', label: 'Settings' },
+const navItems: { id: Page; label: string }[] = [
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'folders', label: 'Watch Folders' },
+  { id: 'rules', label: 'Rules' },
+  { id: 'activity', label: 'Activity Log' },
+  { id: 'duplicates', label: 'Duplicates' },
+  { id: 'settings', label: 'Settings' },
 ]
 
 export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
@@ -48,7 +48,6 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
             className={`nav-item ${currentPage === item.id ? 'active' : ''}`}
             onClick={() => onNavigate(item.id)}
           >
-            <span className="nav-item-icon">{item.icon}</span>
             <span>{item.label}</span>
           </div>
         ))}
