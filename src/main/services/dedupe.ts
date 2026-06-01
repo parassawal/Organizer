@@ -7,31 +7,39 @@ export class DedupeEngine {
   async scanFolders(folderPaths: string[]): Promise<DuplicateGroup[]> {
     const fileList: DuplicateFile[] = []
 
-    // 1. Gather all files
-    for (const folderPath of folderPaths) {
-      if (!fs.existsSync(folderPath)) continue
-      
+    // 1. Gather all files (recursive)
+    const scanDirectory = (dirPath: string) => {
       try {
-        const entries = fs.readdirSync(folderPath, { withFileTypes: true })
+        if (!fs.existsSync(dirPath)) return
+        const entries = fs.readdirSync(dirPath, { withFileTypes: true })
         for (const entry of entries) {
-          if (!entry.isFile()) continue
-          
-          const fullPath = path.join(folderPath, entry.name)
-          try {
-            const stats = fs.statSync(fullPath)
-            fileList.push({
-              path: fullPath,
-              name: entry.name,
-              size: stats.size,
-              folderPath
-            })
-          } catch (err) {
-            console.error('Error stating file:', fullPath, err)
+          const fullPath = path.join(dirPath, entry.name)
+          if (entry.isDirectory()) {
+            // Ignore the 'Duplicates' folder itself
+            if (entry.name !== 'Duplicates') {
+              scanDirectory(fullPath)
+            }
+          } else if (entry.isFile()) {
+            try {
+              const stats = fs.statSync(fullPath)
+              fileList.push({
+                path: fullPath,
+                name: entry.name,
+                size: stats.size,
+                folderPath: dirPath // keep track of where it actually is
+              })
+            } catch (err) {
+              console.error('Error stating file:', fullPath, err)
+            }
           }
         }
       } catch (err) {
-        console.error('Error reading folder:', folderPath, err)
+        console.error('Error reading directory:', dirPath, err)
       }
+    }
+
+    for (const folderPath of folderPaths) {
+      scanDirectory(folderPath)
     }
 
     // 2. Group by size
