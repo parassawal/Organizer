@@ -2,21 +2,29 @@ import { useState, useEffect } from 'react'
 import { useAPI } from '../hooks/useElectronAPI'
 import type { DuplicateGroup, WatchedFolder } from '../types'
 
-export default function Duplicates() {
+export default function Duplicates({ isActive }: { isActive?: boolean }) {
   const api = useAPI()
   const [folders, setFolders] = useState<WatchedFolder[]>([])
   const [groups, setGroups] = useState<DuplicateGroup[]>([])
   const [scanning, setScanning] = useState(false)
   const [moving, setMoving] = useState(false)
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set())
+  const [hasScanned, setHasScanned] = useState(false)
 
   useEffect(() => {
     api.getWatchedFolders().then(setFolders)
   }, [api])
 
+  useEffect(() => {
+    if (isActive && !hasScanned && !scanning && folders.length > 0) {
+      handleScan()
+    }
+  }, [isActive, hasScanned, scanning, folders])
+
   const handleScan = async () => {
     if (folders.length === 0) return
     setScanning(true)
+    setHasScanned(true)
     setSelectedPaths(new Set())
     try {
       const paths = folders.map(f => f.path)

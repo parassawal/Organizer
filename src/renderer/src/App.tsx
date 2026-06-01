@@ -12,25 +12,29 @@ type Page = 'dashboard' | 'folders' | 'rules' | 'activity' | 'duplicates' | 'set
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard')
 
-  const renderPage = () => {
-    switch (currentPage) {
-      case 'dashboard': return <Dashboard onNavigate={setCurrentPage} />
-      case 'folders': return <WatchFolders />
-      case 'rules': return <Rules />
-      case 'activity': return <ActivityLog />
-      case 'duplicates': return <Duplicates />
-      case 'settings': return <Settings />
-    }
-  }
-
   return (
     <div className="app-container">
       <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} />
       <div className="main-content">
         <div className="titlebar">Organizer</div>
         <div className="page-content">
-          <div className="page-enter" key={currentPage}>
-            {renderPage()}
+          <div style={{ display: currentPage === 'dashboard' ? 'block' : 'none' }}>
+            <Dashboard onNavigate={setCurrentPage} />
+          </div>
+          <div style={{ display: currentPage === 'folders' ? 'block' : 'none' }}>
+            <WatchFolders />
+          </div>
+          <div style={{ display: currentPage === 'rules' ? 'block' : 'none' }}>
+            <Rules />
+          </div>
+          <div style={{ display: currentPage === 'activity' ? 'block' : 'none' }}>
+            <ActivityLog />
+          </div>
+          <div style={{ display: currentPage === 'duplicates' ? 'block' : 'none' }}>
+            <Duplicates isActive={currentPage === 'duplicates'} />
+          </div>
+          <div style={{ display: currentPage === 'settings' ? 'block' : 'none' }}>
+            <Settings />
           </div>
         </div>
       </div>
